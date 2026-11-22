@@ -164,7 +164,7 @@ To run the server from the repository, register it in `.mcp.json` (git-ignored):
 }
 ```
 
-Release procedure: [doc/배포가이드.md](https://github.com/bslim1009/capped-video-mcp/blob/main/doc/배포가이드.md) (Korean). Work log: [doc/작업진행.md](https://github.com/bslim1009/capped-video-mcp/blob/main/doc/작업진행.md) (Korean). Changes: [CHANGELOG.md](https://github.com/bslim1009/capped-video-mcp/blob/main/CHANGELOG.md).
+Changes: [CHANGELOG.md](https://github.com/bslim1009/capped-video-mcp/blob/main/CHANGELOG.md).
 
 ## License
 

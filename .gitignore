@@ -24,3 +24,6 @@ input/
 
 # 데이터 폴더에 두는 사용자 설정 덮어쓰기 (기본값은 src/capped_video_mcp/config.toml)
 /config.toml
+
+# 작업 기록 문서 (로컬 전용)
+/doc/
