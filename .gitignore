@@ -27,3 +27,12 @@ input/
 
 # 작업 기록 문서 (로컬 전용)
 /doc/
+
+# 개인 Claude Code 설정, 부가 문서 (로컬 전용)
+/.claude/
+.env.example
+README.ko.md
+CHANGELOG.md
+
+# 검증·재배포 보조 스크립트 (로컬 전용)
+/scripts/

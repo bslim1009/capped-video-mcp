@@ -1,7 +1,5 @@
 # capped-video-mcp
 
-English | [한국어](https://github.com/bslim1009/capped-video-mcp/blob/main/README.ko.md)
-
 A local MCP server that lets agents (Claude Code, Claude Desktop, …) generate videos through **Replicate** and **fal**, using your own API keys — with hard spending caps enforced by the server.
 
 Supported models: `seedance-2.5` (Replicate, default), `seedance-2.5-fal`, `kling-3.0`, `wan-2.5`, `veo-3.1-fast`, `veo-3.1-lite`, `hailuo-2.3`, `gemini-omni-1.2-flash`. Each model has its own allowed durations, resolutions and prices (see `list_models` or the [default config.toml](https://github.com/bslim1009/capped-video-mcp/blob/main/src/capped_video_mcp/config.toml)).
@@ -176,7 +174,7 @@ To run the server from the repository, register it in `.mcp.json` (git-ignored):
 }
 ```
 
-Changes: [CHANGELOG.md](https://github.com/bslim1009/capped-video-mcp/blob/main/CHANGELOG.md).
+Changes are listed on the [releases page](https://github.com/bslim1009/capped-video-mcp/releases).
 
 ## License
 
