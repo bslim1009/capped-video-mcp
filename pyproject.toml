@@ -1,0 +1,56 @@
+[project]
+name = "capped-video-mcp"
+version = "0.1.0"
+description = "영상 생성 모델(Seedance, Kling, Veo 등)을 fal·Replicate 로 부르는 MCP 서버. 비용 상한과 자동 다운로드 포함"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["mcp", "model-context-protocol", "capped-videoeration", "seedance", "fal", "replicate", "claude"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Video",
+]
+authors = [
+    { name = "임범수", email = "gobslim@daum.net" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "anyio>=4.16.0",
+    "filelock>=4.2.12",
+    "httpx>=0.28.1",
+    "mcp[cli]>=2.3.0",
+    "pydantic>=2.14.4",
+    "python-dotenv>=1.2.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/bslim1009/capped-video-mcp"
+Issues = "https://github.com/bslim1009/capped-video-mcp/issues"
+
+[project.scripts]
+capped-video-mcp = "capped_video_mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.13.8,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]

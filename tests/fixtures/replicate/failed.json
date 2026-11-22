@@ -1,0 +1,6 @@
+{
+  "id": "pred_abc123",
+  "status": "failed",
+  "output": null,
+  "error": "Content moderation: prompt rejected"
+}

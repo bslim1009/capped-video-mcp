@@ -1,0 +1,10 @@
+{
+  "id": "pred_abc123",
+  "model": "bytedance/seedance-2.5",
+  "status": "starting",
+  "input": {"prompt": "a red paper boat", "duration": 5},
+  "urls": {
+    "get": "https://api.replicate.com/v1/predictions/pred_abc123",
+    "cancel": "https://api.replicate.com/v1/predictions/pred_abc123/cancel"
+  }
+}

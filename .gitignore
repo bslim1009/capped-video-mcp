@@ -1,0 +1,26 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 비밀값·실행 결과
+.env
+output/
+data/
+logs/
+input/
+
+# 개인 도구 설정·작업 상태
+.mcp.json
+.omc/
+.playwright-mcp/
+.claude/settings.local.json
+
+# 데이터 폴더에 두는 사용자 설정 덮어쓰기 (기본값은 src/capped_video_mcp/config.toml)
+/config.toml
