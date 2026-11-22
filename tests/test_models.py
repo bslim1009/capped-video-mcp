@@ -121,8 +121,15 @@ def test_extra_input_is_sent(settings):
 
 async def test_list_models_shows_each_model(make_app):
     app = make_app()
-    info = {m["model"]: m for m in app.list_models()["models"]}
-    assert len(info) == 8
+    out = app.list_models()
+    info = {m["model"]: m for m in out["models"]}
+    assert len(info) == 18
+    assert out["defaults"]["image_model"] == "seedance-2.5-i2v"
+    assert out["defaults"]["reference_model"] == "seedance-2.5-ref"
+    assert info["seedance-2.5-ref"]["input"] == "reference"
+    assert info["kling-3.0"]["input"] == "text" and info["kling-3.0-i2v"]["input"] == "image"
+    assert info["kling-3.0-i2v"]["aspect_ratios"] == ["auto"]          # 이미지 비율을 따른다
+    assert info["gemini-omni-1.2-flash-i2v"]["aspect_ratios"] == ["16:9", "9:16"]
     assert info["hailuo-2.3"]["price_per_clip_usd"] == {"768p": {"6": 0.28, "10": 0.56}}
     assert info["hailuo-2.3"]["durations_kind"] == "choices"
     assert info["veo-3.1-fast"]["durations_sec"] == [4, 6, 8]

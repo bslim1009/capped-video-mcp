@@ -15,7 +15,7 @@ EDITABLE = Path(config.__file__).resolve().parents[2] == SOURCE_ROOT
 def test_packaged_default_loads_without_user_file(tmp_path):
     s = load_settings(tmp_path / "config.toml", environ={})
     assert s.defaults.model == "seedance-2.5"
-    assert len(s.models) == 8
+    assert len(s.models) == 18    # 텍스트→영상 8 + 이미지→영상 8 + 참조→영상 2
 
 
 def test_user_file_overrides_only_given_keys(tmp_path):
@@ -24,7 +24,7 @@ def test_user_file_overrides_only_given_keys(tmp_path):
     assert s.limits.daily_max_usd == 2.5
     assert s.limits.monthly_max_usd == 30.0       # 쓰지 않은 키는 기본값
     assert s.defaults.model == "seedance-2.5"
-    assert len(s.models) == 8
+    assert len(s.models) == 18    # 텍스트→영상 8 + 이미지→영상 8 + 참조→영상 2
 
 
 def test_user_models_list_replaces_whole_list(tmp_path):
@@ -36,6 +36,8 @@ def test_user_models_list_replaces_whole_list(tmp_path):
     )
     s = load_settings(tmp_path / "config.toml", environ={})
     assert [m.alias for m in s.models] == ["only"]
+    # 기본 이미지·참조 모델이 목록에 없으면 버린다 (서버는 뜬다)
+    assert s.defaults.image_model is None and s.defaults.reference_model is None
 
 
 def test_top_level_aspect_ratios_in_user_file(tmp_path):
@@ -47,6 +49,10 @@ def test_top_level_aspect_ratios_in_user_file(tmp_path):
 def test_env_overrides_all_types(tmp_path):
     env = {
         "CAPPED_VIDEO_DEFAULT_MODEL": "kling-3.0",
+        "CAPPED_VIDEO_DEFAULT_IMAGE_MODEL": "kling-3.0-i2v",
+        "CAPPED_VIDEO_MAX_IMAGE_BYTES": "5000000",
+        "CAPPED_VIDEO_DEFAULT_REFERENCE_MODEL": "seedance-2.5-fal-ref",
+        "CAPPED_VIDEO_MAX_AUDIO_BYTES": "4000000",
         "CAPPED_VIDEO_DEFAULT_RESOLUTION": "720p",
         "CAPPED_VIDEO_DEFAULT_DURATION_SEC": "8",
         "CAPPED_VIDEO_DEFAULT_ASPECT_RATIO": "9:16",
@@ -71,6 +77,8 @@ def test_env_overrides_all_types(tmp_path):
     assert (lim.max_resolution, lim.max_duration_sec, lim.daily_max_count) == ("720p", 8, 3)
     assert (lim.daily_max_usd, lim.monthly_max_usd, lim.max_pending_jobs) == (1.5, 12.0, 1)
     assert lim.duplicate_window_minutes == 0
+    assert (s.defaults.image_model, lim.max_image_bytes) == ("kling-3.0-i2v", 5_000_000)
+    assert (s.defaults.reference_model, lim.max_audio_bytes) == ("seedance-2.5-fal-ref", 4_000_000)
     assert (lim.confirm_above_usd, lim.confirm_fallback, lim.failover) == (0.5, "deny", False)
     assert Path(s.preview.ffmpeg) == tmp_path / "ffmpeg.exe"
     assert s.download.dir == str(tmp_path / "videos")

@@ -207,6 +207,8 @@ class Ledger:
                 "resolution": req.resolution,
                 "duration_sec": req.duration_sec,
                 "aspect_ratio": req.aspect_ratio,
+                "image": req.image.path if req.image is not None else None,   # 입력 이미지 경로 (내용은 남기지 않음)
+                "references": req.reference_labels() or None,                  # 참조 표기 → 파일 경로
                 "estimated_usd": cost,
                 "status": RESERVED,
                 "fingerprint": fp,
@@ -254,19 +256,28 @@ class Ledger:
                 best = (job_id, dict(job), by)
         return best
 
+    def _reprice_ok(self, data: dict[str, Any], job_id: str, cost: float, limits: Limits) -> bool:
+        job = data["jobs"].get(job_id)
+        if job is None or job["status"] != RESERVED:
+            return False
+        others = {k: v for k, v in data["jobs"].items() if k != job_id}
+        s = self._summary(others, self.now())
+        return s["today_usd"] + cost <= limits.daily_max_usd and s["month_usd"] + cost <= limits.monthly_max_usd
+
+    def can_reprice(self, job_id: str, req: GenerationRequest, limits: Limits) -> bool:
+        """reprice 가 지금 성공할지 (바꾸지 않고 보기만 한다). 사용자에게 묻기 전에 쓴다."""
+        with self._locked():
+            return self._reprice_ok(self._read(), job_id, req.estimated_usd, limits)
+
     def reprice(self, job_id: str, req: GenerationRequest, limits: Limits) -> bool:
         """reserved 작업을 다른 모델(제공처 전환)로 바꾼다. 바뀐 비용이 예산 안이면 갱신하고 True, 아니면 False."""
         with self._locked():
             data = self._read()
-            job = data["jobs"].get(job_id)
-            if job is None or job["status"] != RESERVED:
+            cost = req.estimated_usd
+            if not self._reprice_ok(data, job_id, cost, limits):
                 return False
             now = self.now()
-            others = {k: v for k, v in data["jobs"].items() if k != job_id}
-            s = self._summary(others, now)
-            cost = req.estimated_usd
-            if s["today_usd"] + cost > limits.daily_max_usd or s["month_usd"] + cost > limits.monthly_max_usd:
-                return False
+            job = data["jobs"][job_id]
             job.update(provider=req.model.provider, model=req.model.alias, model_ref=req.model.model_ref,
                        resolution=req.resolution, duration_sec=req.duration_sec, aspect_ratio=req.aspect_ratio,
                        estimated_usd=cost, updated_at=now.isoformat())

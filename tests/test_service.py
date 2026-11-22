@@ -659,14 +659,17 @@ class Uncertain(MockProvider):
 async def test_failover_to_fallback_model_on_confirmed_rejection(make_app):
     fal = MockProvider()
     app = make_app(providers={"replicate": Rejecting(), "fal": fal})
-    r = await app.generate("a boat")
+    yes = _confirming(True)
+    r = await app.generate("a boat", confirm=yes)
+    (question,) = yes.calls                                          # 더 비싸서 물었다
+    assert "seedance-2.5-fal" in question and "$1.10" in question and "모델 점검 중" in question
     assert r["failover_from"] == "seedance-2.5" and r["model"] == "seedance-2.5-fal" and r["provider"] == "fal"
     assert r["estimated_usd"] == pytest.approx(0.2205 * 5) and "거부" in r["message"]
     job = app.ledger.get(r["job_id"])
     assert job["model"] == "seedance-2.5-fal" and job["status"] == L.QUEUED and fal._prompts
     assert app.ledger.summary()["today_usd"] == pytest.approx(0.2205 * 5)
     events = [e["event"] for e in _audit_events(app)]
-    assert events.count("create_requested") == 2 and "failover" in events
+    assert events.count("create_requested") == 2 and "failover" in events and "failover_accepted" in events
     await poll(app)
     assert app.ledger.get(r["job_id"])["status"] == L.SUCCEEDED
 
@@ -685,7 +688,7 @@ async def test_no_failover_when_fallback_over_budget(make_app, settings):
     app = make_app(providers={"replicate": Rejecting(), "fal": fal})
     app.settings = settings.model_copy(update={"limits": settings.limits.model_copy(update={"daily_max_usd": 0.6})})
     with pytest.raises(AppError, match="점검"):
-        await app.generate("a boat")        # replicate $0.514 는 예산 안, fal $1.10 은 밖
+        await app.generate("a boat", confirm=_confirming(True))   # replicate $0.514 는 예산 안, fal $1.10 은 밖
     assert not fal._prompts
     job = list(app.ledger.jobs().values())[0]
     assert job["status"] == L.CREATE_FAILED and job["model"] == "seedance-2.5"
@@ -716,7 +719,7 @@ async def test_failover_reports_both_errors_when_fallback_also_fails(make_app):
             raise ProviderError("잔액 부족")
     app = make_app(providers={"replicate": Rejecting(), "fal": Rejecting2()})
     with pytest.raises(AppError, match="seedance-2.5: 모델 점검 중 / seedance-2.5-fal: 잔액 부족"):
-        await app.generate("a boat")
+        await app.generate("a boat", confirm=_confirming(True))
     assert list(app.ledger.jobs().values())[0]["status"] == L.CREATE_FAILED
 
 
@@ -725,8 +728,8 @@ async def test_failover_reports_both_errors_when_fallback_also_fails(make_app):
 def _confirming(answer):
     calls = []
 
-    async def confirm(req):
-        calls.append(req.estimated_usd)
+    async def confirm(message):
+        calls.append(message)
         return answer
     confirm.calls = calls
     return confirm
@@ -742,7 +745,7 @@ async def test_confirm_asked_only_at_or_above_threshold(make_app, settings):
     app = _with_confirm(make_app(), settings, 0.5)
     yes = _confirming(True)
     r = await app.generate("a boat", confirm=yes)                                 # $0.514 ≥ 0.5 → 묻는다
-    assert r["status"] == L.QUEUED and yes.calls == [pytest.approx(0.514)]
+    assert r["status"] == L.QUEUED and len(yes.calls) == 1 and "$0.51" in yes.calls[0] and "seedance-2.5" in yes.calls[0]
     r2 = await app.generate("cheap", model="wan-2.5", duration_sec=5, confirm=yes)  # $0.25 → 안 묻는다
     assert r2["status"] == L.QUEUED and len(yes.calls) == 1
     assert "confirm_accepted" in [e["event"] for e in _audit_events(app)]

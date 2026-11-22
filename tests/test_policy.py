@@ -10,7 +10,12 @@ def test_project_config_loads(settings):
     assert {m.alias for m in settings.models} == {
         "seedance-2.5", "seedance-2.5-fal", "kling-3.0", "wan-2.5", "veo-3.1-fast", "veo-3.1-lite",
         "hailuo-2.3", "gemini-omni-1.2-flash",
+        "seedance-2.5-i2v", "seedance-2.5-fal-i2v", "kling-3.0-i2v", "wan-2.5-i2v", "veo-3.1-fast-i2v",
+        "veo-3.1-lite-i2v", "hailuo-2.3-i2v", "gemini-omni-1.2-flash-i2v",
+        "seedance-2.5-ref", "seedance-2.5-fal-ref",
     }
+    assert settings.defaults.image_model == "seedance-2.5-i2v"
+    assert settings.defaults.reference_model == "seedance-2.5-ref"
 
 
 def test_defaults(settings):

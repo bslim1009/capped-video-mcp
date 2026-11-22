@@ -5,9 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import httpx
+
+if TYPE_CHECKING:
+    from ..media import MediaFile
 
 log = logging.getLogger(__name__)
 
@@ -68,6 +71,10 @@ class Provider(Protocol):
 
     async def create_task(self, inp: CreateInput) -> CreateResult: ...
 
+    async def upload_file(self, media: MediaFile) -> str:
+        """입력 파일(이미지·오디오)을 제공처 저장소에 올리고 모델 입력에 넣을 URL 을 돌려준다. 과금되지 않는다 (재시도 가능)."""
+        ...
+
     async def get_task(self, job: dict[str, Any]) -> TaskState: ...
 
     async def cancel(self, job: dict[str, Any]) -> None: ...
@@ -97,6 +104,12 @@ def create_body(resp: httpx.Response, provider: str) -> dict[str, Any]:
     if not isinstance(body, dict):
         raise CreateUncertainError(f"{provider}: 생성 응답 형식이 예상과 다릅니다. 대시보드를 확인하세요.")
     return body
+
+
+def media_file_name(media: MediaFile) -> str:
+    ext = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "audio/mpeg": "mp3", "audio/wav": "wav"}.get(
+        media.mime, "bin")
+    return f"input-{media.sha256[:12]}.{ext}"
 
 
 def short(text: str, limit: int = 200) -> str:

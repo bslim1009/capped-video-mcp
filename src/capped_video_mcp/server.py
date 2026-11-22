@@ -87,35 +87,49 @@ def create_server(app: App) -> MCPServer:
         aspect_ratio: str | None = None,
         request_id: str | None = None,
         force: bool = False,
+        image_path: str | None = None,
+        reference_image_paths: list[str] | None = None,
+        reference_audio_paths: list[str] | None = None,
+        reference_dir: str | None = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
         """영상 생성 작업을 만든다. **과금된다.** 사용자가 영상 생성을 요청했을 때만 부른다.
 
         기본값: config.toml 의 defaults (seedance-2.5 / Replicate, 480p, 5초, 16:9).
+        이미지→영상: image_path 에 첫 프레임으로 쓸 로컬 이미지의 절대 경로(PNG·JPEG·WebP)를 준다.
+        이때 model 은 이름이 -i2v 로 끝나는 이미지→영상 모델이어야 하며, 생략하면 list_models 의 defaults.image_model 을 쓴다.
+        대부분의 이미지→영상 모델은 화면 비율이 이미지를 따르므로 aspect_ratio 를 주지 않는다
+        (list_models 의 aspect_ratios 가 auto 인 모델).
+        참조→영상: 여러 이미지(캐릭터·배경 등)와 음성을 참고해 새 장면을 만든다. 파일은 모두 로컬 절대 경로다.
+        reference_image_paths(PNG·JPEG·WebP, 1장 이상)와 reference_audio_paths(MP3·WAV, 파일당 1.8초 이상,
+        합계 30초 이하)를 주거나, reference_dir 에 폴더를 주면 그 안의 이미지·오디오를 파일 이름순으로 쓴다.
+        프롬프트에서는 순서대로 [Image1], [Image2], [Audio1] 처럼 가리킨다 (예: "[Image1] 의 공룡과 [Image2] 의 공룡이 싸운다.
+        [Audio1] 의 포효 소리에 맞춰"). 어떤 파일이 몇 번인지는 estimate_video 의 references 로 먼저 확인할 수 있다 (무료).
+        model 은 -ref 로 끝나는 참조→영상 모델이며, 생략하면 defaults.reference_model 을 쓴다. image_path 와 함께 쓸 수 없다.
         모델마다 허용 해상도·길이·화면 비율과 가격이 다르다. 다른 모델을 쓰기 전에 list_models 로 확인한다
         (예: veo 는 4·6·8초, wan 은 5·10초, hailuo 는 6·10초만). 지정하지 않으면 모델에 맞는 가장 싼 값을 고른다.
         자동 길이는 허용하지 않는다. 일일·월간 예산을 넘으면 거부한다.
         job_id 를 반환한다. 완료되면 서버가 출력 폴더에 자동 저장하며, get_video_status 로 확인한다.
         오류가 "다시 보내지 마세요"라고 하면 같은 요청을 반복하지 않는다.
-        같은 요청(프롬프트·모델·해상도·길이·비율)이 최근에 이미 접수됐으면 새 작업을 만들지 않고 기존 job_id 를
+        같은 요청(프롬프트·모델·해상도·길이·비율·입력 파일 내용)이 최근에 이미 접수됐으면 새 작업을 만들지 않고 기존 job_id 를
         duplicate=true 로 돌려준다 (과금 없음). request_id 를 주면 그 값으로도 중복을 잡는다.
         사용자가 같은 영상을 하나 더 원할 때만 force=true 를 쓴다.
         1차 제공처가 요청을 확정 거부하면 대체 모델로 만들고 failover_from 에 원래 모델을 적는다.
+        대체 모델이 더 비싸면 서버가 사용자에게 직접 묻고 승인했을 때만 넘어간다. 확인 요청을 지원하지 않는
+        클라이언트에서는 넘어가지 않고 오류로 대체 모델과 가격을 알려 준다 → 사용자에게 물어본 뒤 그 model 로 다시 요청한다.
         예상 비용이 설정 임계값 이상이면 서버가 사용자에게 직접 확인을 요청할 수 있다.
         """
-        async def confirm(req) -> bool | None:
+        async def confirm(message: str) -> bool | None:
             if ctx is None or not ctx.session.check_client_capability(_ELICIT_FORM):
                 return None
-            result = await ctx.elicit(
-                f"영상 생성에 약 ${req.estimated_usd:.2f} 가 과금됩니다 ({req.model.alias}, {req.resolution}, "
-                f"{req.duration_sec}초, {req.aspect_ratio}). 진행할까요?",
-                schema=ConfirmCost,
-            )
+            result = await ctx.elicit(message, schema=ConfirmCost)
             return result.action == "accept" and bool(result.data.proceed)
 
         try:
             return await app.generate(prompt, model, resolution, duration_sec, aspect_ratio,
-                                      request_id=request_id, force=force, confirm=confirm)
+                                      request_id=request_id, force=force, confirm=confirm, image_path=image_path,
+                                      reference_image_paths=reference_image_paths,
+                                      reference_audio_paths=reference_audio_paths, reference_dir=reference_dir)
         except _EXPECTED as e:
             raise tool_error(e) from e
 
@@ -175,21 +189,32 @@ def create_server(app: App) -> MCPServer:
         aspect_ratio: str | None = None,
         model: str | None = None,
         prompt: str | None = None,
+        image_path: str | None = None,
+        reference_image_paths: list[str] | None = None,
+        reference_audio_paths: list[str] | None = None,
+        reference_dir: str | None = None,
     ) -> dict[str, Any]:
         """과금 없이 비용을 견적한다. 조건(길이·해상도·화면 비율)에 맞는 모델을 싼 순서로, 남은 예산과 함께 돌려준다.
 
         generate_video 를 부르기 전에 모델을 고르거나 예산이 충분한지 볼 때 쓴다. cheapest 는 예산 안에서 가장 싼 모델.
         조건을 지정하지 않으면 모델별 가장 싼 값을 가정한다. 조건을 만족하지 못하는 모델은 unavailable 에 이유와 함께 나온다.
         prompt 를 주면 같은 요청이 최근에 있었는지(duplicate_of)도 알려 준다.
+        입력 종류가 같은 모델끼리 비교한다: 참조 파일(reference_*)을 주면 참조→영상, image_path 를 주면 이미지→영상,
+        둘 다 없으면 텍스트→영상. 참조 파일을 주면 references 에 [Image1]·[Audio1] 표기와 파일의 대응을 돌려준다.
         """
         try:
-            return app.estimate(duration_sec, resolution, aspect_ratio, model, prompt)
+            return app.estimate(duration_sec, resolution, aspect_ratio, model, prompt, image_path,
+                                reference_image_paths, reference_audio_paths, reference_dir)
         except _EXPECTED as e:
             raise tool_error(e) from e
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))
     def list_models() -> dict[str, Any]:
-        """사용할 수 있는 모델, 해상도별 초당 가격(USD), 길이 범위, 기본값을 돌려준다."""
+        """사용할 수 있는 모델, 해상도별 초당 가격(USD), 길이 범위, 기본값을 돌려준다.
+
+        input 이 image 인 모델은 이미지→영상 모델이며 generate_video 에 image_path 가 필요하다.
+        input 이 reference 인 모델은 참조→영상 모델이며 참조 이미지(reference_image_paths 또는 reference_dir)가 필요하다.
+        """
         return app.list_models()
 
     return mcp

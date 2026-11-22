@@ -5,7 +5,9 @@
 
 [defaults]
 model = "seedance-2.5"
-resolution = "480p"           # 모델에 없으면 그 모델의 가장 낮은 해상도
+image_model = "seedance-2.5-i2v" # image_path 를 주고 모델을 지정하지 않으면 쓰는 이미지→영상 모델
+reference_model = "seedance-2.5-ref" # 참조 파일을 주고 모델을 지정하지 않으면 쓰는 참조→영상 모델
+resolution = "480p"          # 모델에 없으면 그 모델의 가장 낮은 해상도
 duration_sec = 5              # 모델이 허용하지 않으면 모델 기본값 또는 가장 짧은 길이
 aspect_ratio = "16:9"
 
@@ -21,6 +23,8 @@ job_timeout_minutes = 60      # 원격이 이 시간이 지나도 끝나지 않�
 download_retry_minutes = 50   # 원격 완료 후 다운로드 재시도 기한 (Replicate 는 완료 1시간 뒤 결과 삭제)
 poll_interval_sec = 10        # 백그라운드 수거 주기
 max_prompt_chars = 2000
+max_image_bytes = 20_971_520  # 입력 이미지 파일 하나의 크기 상한 (20MB)
+max_audio_bytes = 15_728_640  # 참조 오디오 파일 하나의 크기 상한 (15MB, fal 제한)
 duplicate_window_minutes = 10 # 이 시간 안에 같은 요청(프롬프트·모델·해상도·길이·비율)이 다시 오면 새 작업을 만들지 않고
                               # 기존 job_id 를 돌려준다 (에이전트 재시도로 인한 이중 과금 방지). 0 이면 끈다
 confirm_above_usd = 0         # 예상 비용이 이 값 이상이면 생성 전에 서버가 사용자에게 직접 확인을 요청한다 (MCP elicitation).
@@ -56,6 +60,12 @@ allowed_hosts = [
 #   duration_format = "int"(5) | "str"("5") | "str_s"("5s")
 #   send_resolution / send_aspect_ratio = 입력 필드가 없는 모델은 false
 #   generate_audio = 보낼 값 (없으면 보내지 않음). 가격표는 이 값 기준이어야 한다
+#   image_field = 이미지→영상 모델의 입력 이미지 필드 이름. 있으면 image_path 가 반드시 필요하다
+#   send_aspect_ratio = false 인 이미지→영상 모델은 화면 비율이 입력 이미지를 따른다
+#     (그런 모델은 extra 로 고정값 aspect_ratio 를 보낼 수 있다. 예: Replicate Seedance 의 "adaptive")
+#   ref_images_field / ref_audios_field = 참조→영상 모델의 참조 이미지·오디오 URL 목록 필드. 참조 이미지가 1장 이상 필요하다
+#   max_ref_images / max_ref_audios = 참조 개수 상한 (기본 30 / 10)
+#   ref_syntax = 프롬프트의 참조 표기. "bracket" = [Image1] (Replicate), "at" = @Image1 (fal). 서버가 이 표기로 바꿔 보낸다
 # 모든 가격은 USD, 확인일은 price_checked.
 
 [[models]]
@@ -151,3 +161,128 @@ aspect_ratios = ["16:9", "9:16"]
 price_per_sec = { "360p" = 0.0273, "720p" = 0.0819, "1080p" = 0.1229, "4k" = 0.2457 }
 price_checked = "2026-11-22"
 input = { duration_format = "int" }
+
+# ── 이미지→영상 모델 (image_path 필요) ──
+# 가격: fal 은 각 이미지→영상 페이지에서 텍스트→영상과 같음을 확인했다 (2026-11-22).
+# Replicate seedance-2.5-i2v 는 공시 가격표의 non_video_in 단가를 쓴다 (이미지 입력이 이 단가라는 문구는 없음).
+# 입력 이미지는 생성 요청 직전에 제공처 저장소(Replicate Files API, fal CDN)에 올리고 그 URL 을 보낸다.
+
+[[models]]
+alias = "seedance-2.5-i2v"
+provider = "replicate"
+model_ref = "bytedance/seedance-2.5"
+note = "Seedance 2.5 이미지→영상 (Replicate). 첫 프레임 이미지. 비율은 이미지를 따름. 소리 포함"
+fallback_model = "seedance-2.5-fal-i2v"
+min_duration_sec = 4
+max_duration_sec = 10
+# 같은 모델에 image 를 넣는다. 영상 입력(video_in)일 때만 약 4.2배 비싸다
+price_per_sec = { "480p" = 0.1028, "720p" = 0.2312 }
+price_checked = "2026-11-22"
+# 첫·끝 프레임 모드는 aspect_ratio 가 "adaptive" 여야 한다 (모델 README)
+input = { duration_format = "int", generate_audio = true, image_field = "image", send_aspect_ratio = false, extra = { aspect_ratio = "adaptive" } }
+
+[[models]]
+alias = "seedance-2.5-fal-i2v"
+provider = "fal"
+model_ref = "bytedance/seedance-2.5/image-to-video"
+note = "Seedance 2.5 이미지→영상 (fal). Replicate 보다 약 2배 비쌈. 비율은 이미지를 따름"
+fallback_model = "seedance-2.5-i2v"
+min_duration_sec = 4
+max_duration_sec = 10
+price_per_sec = { "480p" = 0.2205, "720p" = 0.4730 }
+price_checked = "2026-11-22"
+# 문서: aspect_ratio 는 image-to-video 에서 항상 "auto"
+input = { duration_format = "str", generate_audio = true, image_field = "image_url", send_aspect_ratio = false, extra = { aspect_ratio = "auto" } }
+
+[[models]]
+alias = "kling-3.0-i2v"
+provider = "fal"
+model_ref = "fal-ai/kling-video/v3/standard/image-to-video"
+note = "Kling 3.0 Standard 이미지→영상. 소리 켬 기준. 비율은 이미지를 따름 (이미지 최소 300px, 비율 0.4~2.5)"
+min_duration_sec = 3
+max_duration_sec = 15
+price_per_sec = { "720p" = 0.126 }
+price_checked = "2026-11-22"
+input = { duration_format = "str", send_resolution = false, send_aspect_ratio = false, generate_audio = true, image_field = "start_image_url" }
+
+[[models]]
+alias = "wan-2.5-i2v"
+provider = "fal"
+model_ref = "fal-ai/wan-25-preview/image-to-video"
+note = "Wan 2.5 (preview) 이미지→영상. 5초 또는 10초. 비율은 이미지를 따름. 프롬프트 1500자 이하"
+durations = [5, 10]
+price_per_sec = { "480p" = 0.05, "720p" = 0.10, "1080p" = 0.15 }
+price_checked = "2026-11-22"
+input = { duration_format = "str", send_aspect_ratio = false, image_field = "image_url" }
+
+[[models]]
+alias = "veo-3.1-fast-i2v"
+provider = "fal"
+model_ref = "fal-ai/veo3.1/fast/image-to-video"
+note = "Veo 3.1 Fast 이미지→영상. 4·6·8초. 이미지는 720p 이상 16:9 또는 9:16 권장 (아니면 잘림)"
+durations = [4, 6, 8]
+price_per_sec = { "720p" = 0.15, "1080p" = 0.15, "4k" = 0.35 }
+price_checked = "2026-11-22"
+input = { duration_format = "str_s", send_aspect_ratio = false, generate_audio = true, image_field = "image_url" }
+
+[[models]]
+alias = "veo-3.1-lite-i2v"
+provider = "fal"
+model_ref = "fal-ai/veo3.1/lite/image-to-video"
+note = "Veo 3.1 Lite 이미지→영상. 4·6·8초. 이미지는 720p 이상 16:9 또는 9:16 권장"
+durations = [4, 6, 8]
+price_per_sec = { "720p" = 0.05, "1080p" = 0.08 }
+price_checked = "2026-11-22"
+input = { duration_format = "str_s", send_aspect_ratio = false, generate_audio = true, image_field = "image_url" }
+
+[[models]]
+alias = "hailuo-2.3-i2v"
+provider = "fal"
+model_ref = "fal-ai/minimax/hailuo-2.3/standard/image-to-video"
+note = "Hailuo 2.3 Standard 이미지→영상. 768p 고정, 6초 또는 10초, 한 편당 과금. 비율은 이미지를 따름"
+durations = [6, 10]
+price_per_clip = { "768p" = { "6" = 0.28, "10" = 0.56 } }
+price_checked = "2026-11-22"
+input = { duration_format = "str", send_resolution = false, send_aspect_ratio = false, image_field = "image_url" }
+
+[[models]]
+alias = "gemini-omni-1.2-flash-i2v"
+provider = "fal"
+model_ref = "google/gemini-omni-flash/v1.2/image-to-video"
+note = "Gemini Omni Flash 1.2 이미지→영상. 소리 포함. 화면 비율은 16:9·9:16 중 선택"
+min_duration_sec = 3
+max_duration_sec = 15
+aspect_ratios = ["16:9", "9:16"]
+price_per_sec = { "360p" = 0.0273, "720p" = 0.0819, "1080p" = 0.1229, "4k" = 0.2457 }
+price_checked = "2026-11-22"
+input = { duration_format = "int", image_field = "image_url" }
+
+# ── 참조→영상 모델 (참조 이미지 1장 이상 + 참조 오디오 선택) ──
+# 여러 이미지(캐릭터·배경)와 음성을 참고해 새 장면을 만든다. 첫 프레임 모드와는 함께 쓸 수 없다.
+# 오디오: MP3·WAV, 파일당 1.8초 이상, 합계 30초 이하 (두 제공처 조건의 교집합. 서버가 미리 검사)
+# 참조 영상(video)은 지원하지 않는다 (영상 입력은 단가가 약 4.2배).
+
+[[models]]
+alias = "seedance-2.5-ref"
+provider = "replicate"
+model_ref = "bytedance/seedance-2.5"
+note = "Seedance 2.5 참조→영상 (Replicate). 참조 이미지 최대 30장 + 오디오 최대 10개. 프롬프트에서 [Image1]·[Audio1]"
+fallback_model = "seedance-2.5-fal-ref"
+min_duration_sec = 4
+max_duration_sec = 10
+# 공시 가격표의 non_video_in 단가 (참조 영상을 넣을 때만 video_in. 이미지·오디오 참조가 이 단가라는 문구는 없음)
+price_per_sec = { "480p" = 0.1028, "720p" = 0.2312 }
+price_checked = "2026-11-22"
+input = { duration_format = "int", generate_audio = true, ref_images_field = "reference_images", ref_audios_field = "reference_audios", ref_syntax = "bracket" }
+
+[[models]]
+alias = "seedance-2.5-fal-ref"
+provider = "fal"
+model_ref = "bytedance/seedance-2.5/reference-to-video"
+note = "Seedance 2.5 참조→영상 (fal). Replicate 보다 약 2배 비쌈. 프롬프트 표기는 서버가 @Image1 로 바꿔 보냄"
+fallback_model = "seedance-2.5-ref"
+min_duration_sec = 4
+max_duration_sec = 10
+price_per_sec = { "480p" = 0.2205, "720p" = 0.4730 }
+price_checked = "2026-11-22"
+input = { duration_format = "str", generate_audio = true, ref_images_field = "image_urls", ref_audios_field = "audio_urls", ref_syntax = "at", extra = { task = "reference" } }

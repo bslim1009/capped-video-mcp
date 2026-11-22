@@ -19,6 +19,9 @@ RESOLUTIONS: tuple[str, ...] = ("360p", "480p", "720p", "768p", "1080p", "4k")
 ProviderName = Literal["replicate", "fal"]
 # 요청 본문의 duration 형식: 정수(5), 문자열("5"), 초 접미사 문자열("5s")
 DurationFormat = Literal["int", "str", "str_s"]
+# 모델 입력 종류: 텍스트만 / 첫 프레임 이미지 / 참조(이미지 여러 장 + 오디오)
+ModelKind = Literal["text", "image", "reference"]
+KIND_NAMES = {"text": "텍스트→영상", "image": "이미지→영상", "reference": "참조→영상"}
 # 서버가 직접 채우는 입력 필드. extra 로 덮어쓰지 못하게 한다.
 RESERVED_INPUT_KEYS = frozenset({"prompt", "duration", "resolution", "aspect_ratio", "generate_audio"})
 
@@ -43,11 +46,38 @@ class ModelInput(_Strict):
     send_resolution: bool = True        # 해상도 입력이 없는 모델은 false (고정 해상도)
     send_aspect_ratio: bool = True      # 화면 비율 입력이 없는 모델은 false
     generate_audio: bool | None = None  # None 이면 보내지 않는다. 가격표는 이 값 기준이어야 한다
+    # 이미지→영상 모델: 입력 이미지 URL 을 담을 필드 이름 (image_url, start_image_url, image 등).
+    # 값이 있으면 이미지가 반드시 필요한 모델이고, 없으면 텍스트→영상 모델이다.
+    image_field: str | None = Field(default=None, min_length=1)
+    # 참조→영상 모델: 참조 이미지 URL 목록·참조 오디오 URL 목록을 담을 필드 이름.
+    # ref_images_field 가 있으면 참조 이미지가 1장 이상 필요한 모델이다.
+    ref_images_field: str | None = Field(default=None, min_length=1)
+    ref_audios_field: str | None = Field(default=None, min_length=1)
+    max_ref_images: int = Field(default=30, ge=1)
+    max_ref_audios: int = Field(default=10, ge=0)
+    # 프롬프트에서 참조를 가리키는 표기: bracket = [Image1] (Replicate), at = @Image1 (fal).
+    # 어느 표기로 써도 서버가 이 표기로 바꿔 보낸다 (제공처 전환 때도 프롬프트가 맞도록).
+    ref_syntax: Literal["bracket", "at"] = "bracket"
     extra: dict[str, Any] = Field(default_factory=dict)  # 고정으로 함께 보낼 값
 
     @model_validator(mode="after")
     def _check(self) -> ModelInput:
-        bad = RESERVED_INPUT_KEYS & set(self.extra)
+        reserved = set(RESERVED_INPUT_KEYS)
+        if self.image_field is not None and not self.send_aspect_ratio:
+            # 비율을 입력 이미지에서 정하는 모델은 고정값("adaptive", "auto")을 extra 로 보낼 수 있다.
+            reserved.discard("aspect_ratio")
+        if self.image_field is not None and self.ref_images_field is not None:
+            raise ValueError("input.image_field 와 ref_images_field 는 함께 쓸 수 없다 (첫 프레임과 참조 모드는 섞을 수 없음)")
+        if self.ref_audios_field is not None and self.ref_images_field is None:
+            raise ValueError("input.ref_audios_field 는 ref_images_field 와 함께 써야 한다 (오디오는 참조 이미지가 필요)")
+        fields = [f for f in (self.image_field, self.ref_images_field, self.ref_audios_field) if f is not None]
+        if len(fields) != len(set(fields)):
+            raise ValueError(f"input 의 이미지·참조 필드 이름이 겹친다: {fields}")
+        for f in fields:
+            if f in RESERVED_INPUT_KEYS:
+                raise ValueError(f"input 의 이미지·참조 필드에 서버가 채우는 필드를 쓸 수 없다: {f!r}")
+            reserved.add(f)
+        bad = reserved & set(self.extra)
         if bad:
             raise ValueError(f"input.extra 에 서버가 채우는 필드를 넣을 수 없다: {sorted(bad)}")
         return self
@@ -104,7 +134,25 @@ class ModelConfig(_Strict):
                         raise ValueError(f"{a}: price_per_clip 의 길이 {d!r} 가 허용 길이에 없다")
         if not self.input.send_resolution and len(table) != 1:
             raise ValueError(f"{a}: 해상도 입력이 없는 모델은 가격표에 해상도가 하나여야 한다")
+        if self.follows_image_ratio and self.aspect_ratios is not None:
+            raise ValueError(f"{a}: 입력 이미지의 비율을 따르는 모델(send_aspect_ratio=false)에는 aspect_ratios 를 쓰지 않는다")
         return self
+
+    @property
+    def kind(self) -> ModelKind:
+        if self.input.ref_images_field is not None:
+            return "reference"
+        return "image" if self.input.image_field is not None else "text"
+
+    @property
+    def needs_image(self) -> bool:
+        """첫 프레임 이미지가 필요한 모델."""
+        return self.kind == "image"
+
+    @property
+    def follows_image_ratio(self) -> bool:
+        """이미지→영상 모델 중 화면 비율을 입력 이미지에서 정하는 모델."""
+        return self.needs_image and not self.input.send_aspect_ratio
 
     def supports_duration(self, sec: int) -> bool:
         if self.durations is not None:
@@ -133,6 +181,8 @@ class ModelConfig(_Strict):
 
 class Defaults(_Strict):
     model: str
+    image_model: str | None = None     # image_path 를 주고 모델을 지정하지 않았을 때 쓸 이미지→영상 모델
+    reference_model: str | None = None  # 참조 파일을 주고 모델을 지정하지 않았을 때 쓸 참조→영상 모델
     resolution: str
     duration_sec: int = Field(ge=1)
     aspect_ratio: str
@@ -150,6 +200,8 @@ class Limits(_Strict):
     download_retry_minutes: int = Field(ge=1)
     poll_interval_sec: float = Field(gt=0)
     max_prompt_chars: int = Field(ge=1)
+    max_image_bytes: int = Field(default=20_971_520, gt=0)   # 이미지 파일 하나의 크기 상한
+    max_audio_bytes: int = Field(default=15_728_640, gt=0)   # 오디오 파일 하나의 크기 상한 (fal 15MB)
     duplicate_window_minutes: int = Field(default=10, ge=0)  # 0 이면 중복 감지 끔
     confirm_above_usd: float = Field(default=0.0, ge=0)      # 0 이면 확인 요청 안 함
     confirm_fallback: Literal["allow", "deny"] = "allow"
@@ -199,6 +251,15 @@ class Settings(_Strict):
             raise ValueError("models: alias 가 중복된다")
         if self.defaults.model not in aliases:
             raise ValueError(f"defaults.model {self.defaults.model!r} 이 허용 목록에 없다")
+        for key, kind in (("model", "text"), ("image_model", "image"), ("reference_model", "reference")):
+            alias = getattr(self.defaults, key)
+            if alias is None:
+                continue
+            m = self.model(alias)
+            if m is None:
+                raise ValueError(f"defaults.{key} {alias!r} 이 허용 목록에 없다")
+            if m.kind != kind:
+                raise ValueError(f"defaults.{key} {alias!r} 은 {KIND_NAMES[m.kind]} 모델이다. {KIND_NAMES[kind]} 모델을 쓴다")
         # 모델에 없는 해상도는 정책이 대체하지만, 아예 모르는 값은 오타다.
         if self.defaults.resolution not in RESOLUTIONS:
             raise ValueError(f"defaults.resolution: 알 수 없는 해상도 {self.defaults.resolution!r}")
@@ -206,6 +267,8 @@ class Settings(_Strict):
             fb = m.fallback_model
             if fb is not None and (fb == m.alias or fb not in aliases):
                 raise ValueError(f"{m.alias}: fallback_model {fb!r} 이 허용 목록에 없거나 자기 자신이다")
+            if fb is not None and self.model(fb).kind != m.kind:  # type: ignore[union-attr]
+                raise ValueError(f"{m.alias}: fallback_model {fb!r} 은 입력 종류(텍스트/이미지/참조)가 같아야 한다")
         if self.defaults.aspect_ratio not in self.limits.aspect_ratios:
             raise ValueError("defaults.aspect_ratio 가 limits.aspect_ratios 에 없다")
         return self
@@ -255,6 +318,8 @@ def default_config_text() -> str:
 # 환경 변수 → (설정 표, 키, 형). MCP 클라이언트에 서버를 등록할 때 값을 넘기는 용도다.
 ENV_OVERRIDES: dict[str, tuple[str, str, type]] = {
     "CAPPED_VIDEO_DEFAULT_MODEL": ("defaults", "model", str),
+    "CAPPED_VIDEO_DEFAULT_IMAGE_MODEL": ("defaults", "image_model", str),
+    "CAPPED_VIDEO_DEFAULT_REFERENCE_MODEL": ("defaults", "reference_model", str),
     "CAPPED_VIDEO_DEFAULT_RESOLUTION": ("defaults", "resolution", str),
     "CAPPED_VIDEO_DEFAULT_DURATION_SEC": ("defaults", "duration_sec", int),
     "CAPPED_VIDEO_DEFAULT_ASPECT_RATIO": ("defaults", "aspect_ratio", str),
@@ -264,6 +329,8 @@ ENV_OVERRIDES: dict[str, tuple[str, str, type]] = {
     "CAPPED_VIDEO_DAILY_MAX_USD": ("limits", "daily_max_usd", float),
     "CAPPED_VIDEO_MONTHLY_MAX_USD": ("limits", "monthly_max_usd", float),
     "CAPPED_VIDEO_MAX_PENDING_JOBS": ("limits", "max_pending_jobs", int),
+    "CAPPED_VIDEO_MAX_IMAGE_BYTES": ("limits", "max_image_bytes", int),
+    "CAPPED_VIDEO_MAX_AUDIO_BYTES": ("limits", "max_audio_bytes", int),
     "CAPPED_VIDEO_DUPLICATE_WINDOW_MINUTES": ("limits", "duplicate_window_minutes", int),
     "CAPPED_VIDEO_CONFIRM_ABOVE_USD": ("limits", "confirm_above_usd", float),
     "CAPPED_VIDEO_CONFIRM_FALLBACK": ("limits", "confirm_fallback", str),
@@ -327,10 +394,20 @@ def load_settings(path: Path | None = None, environ: Mapping[str, str] | None = 
     if path is not None and path.is_file():
         try:
             with path.open("rb") as f:
-                data = _merge(data, tomllib.load(f))
+                user = tomllib.load(f)
         except tomllib.TOMLDecodeError as e:
             # Windows 경로는 작은따옴표('D:\Videos')나 / 로 쓴다.
             raise ValueError(f"{path}: {e}") from e
+        data = _merge(data, user)
+        # 모델 목록을 통째로 바꾼 사용자 설정에는 기본 이미지·참조 모델이 없을 수 있다.
+        # 사용자가 직접 정하지 않았으면 기본값을 버린다 (그때는 model 을 지정해야 함).
+        user_defaults = user.get("defaults")
+        user_defaults = user_defaults if isinstance(user_defaults, dict) else {}
+        if "models" in user and isinstance(data.get("models"), list) and isinstance(data.get("defaults"), dict):
+            aliases = {m.get("alias") for m in data["models"] if isinstance(m, dict)}
+            for key in ("image_model", "reference_model"):
+                if key not in user_defaults and data["defaults"].get(key) not in aliases:
+                    data["defaults"].pop(key, None)
         context.append(f"사용자 설정 파일: {path}")
     applied = apply_env_overrides(data, os.environ if environ is None else environ)
     if applied:

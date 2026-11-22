@@ -4,6 +4,8 @@
 - 공식 모델 생성: POST /v1/models/{owner}/{name}/predictions, 본문 {"input": {...}}
 - 인증: Authorization: Bearer <REPLICATE_API_TOKEN>
 - API 로 만든 결과는 완료 1시간 뒤 자동 삭제된다.
+- 입력 파일: POST /v1/files (multipart, 필드 content) → urls.get 을 모델 입력으로 그대로 쓴다.
+  올린 파일은 24시간 뒤 만료된다. data URL 은 256KB~1MB 이하만 권장이라 쓰지 않는다.
 
 검증 필요 (작업진행.md "실제 API 검증" 단계):
 - Seedance 2.5 입력 필드 중 해상도 필드 이름 (`resolution` 으로 가정)
@@ -13,7 +15,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
 import httpx
@@ -26,8 +28,12 @@ from .base import (
     TaskState,
     create_body,
     json_body,
+    media_file_name,
     send,
 )
+
+if TYPE_CHECKING:
+    from ..media import MediaFile
 
 API_BASE = "https://api.replicate.com/v1"
 API_HOST = "api.replicate.com"
@@ -48,6 +54,7 @@ class ReplicateProvider:
     def __init__(self, token: str, client: httpx.AsyncClient | None = None):
         self._client = client or httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0))
         self._headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        self._auth = {"Authorization": f"Bearer {token}"}   # multipart 는 Content-Type 을 httpx 가 정한다
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -67,6 +74,18 @@ class ReplicateProvider:
         # 다른 호스트의 URL 은 버리고 기본 API 경로를 쓴다 (작업은 정상으로 본다).
         remote_urls = {k: urls[k] for k in ("get", "cancel") if isinstance(urls.get(k), str) and _is_api_url(urls[k])}
         return CreateResult(remote_id=pred_id, remote_urls=remote_urls)
+
+    async def upload_file(self, media: MediaFile) -> str:
+        resp = await send(
+            self._client, self.name, "POST", f"{API_BASE}/files", retry=True, headers=self._auth,
+            files={"content": (media_file_name(media), media.data, media.mime)},
+        )
+        body = json_body(resp, self.name)
+        urls = body.get("urls") if isinstance(body.get("urls"), dict) else {}
+        url = urls.get("get")
+        if not isinstance(url, str) or not _is_api_url(url):
+            raise ProviderError("replicate: 파일 업로드 응답에 urls.get 이 없습니다.")
+        return url
 
     def _get_url(self, job: dict[str, Any]) -> str:
         return job.get("remote_urls", {}).get("get") or f"{API_BASE}/predictions/{job['remote_id']}"
