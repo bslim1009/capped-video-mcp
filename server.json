@@ -1,0 +1,62 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.bslim1009/capped-video-mcp",
+  "title": "Capped Video",
+  "description": "Video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps",
+  "repository": {
+    "url": "https://github.com/bslim1009/capped-video-mcp",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "capped-video-mcp",
+      "version": "0.1.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "FAL_KEY",
+          "description": "fal.ai API key (API scope). Enables fal models.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "REPLICATE_API_TOKEN",
+          "description": "Replicate API token. Enables Replicate models.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "CAPPED_VIDEO_DEFAULT_MODEL",
+          "description": "Default model alias (see list_models).",
+          "default": "seedance-2.5"
+        },
+        {
+          "name": "CAPPED_VIDEO_DAILY_MAX_USD",
+          "description": "Daily spending cap in USD (estimated).",
+          "default": "5"
+        },
+        {
+          "name": "CAPPED_VIDEO_MONTHLY_MAX_USD",
+          "description": "Monthly spending cap in USD (estimated).",
+          "default": "30"
+        },
+        {
+          "name": "CAPPED_VIDEO_CONFIRM_ABOVE_USD",
+          "description": "Ask the user before generations costing at least this much (0 = off).",
+          "default": "0"
+        },
+        {
+          "name": "CAPPED_VIDEO_OUTPUT_DIR",
+          "description": "Where finished videos are saved.",
+          "default": "~/.capped-video-mcp/output"
+        }
+      ]
+    }
+  ]
+}

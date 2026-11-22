@@ -167,3 +167,9 @@ uv run pytest               # 실제 API 를 부르지 않는다
 ## 라이선스
 
 MIT
+
+---
+
+공식 MCP Registry 등록 이름 (PyPI 패키지 소유 확인용 표식):
+
+mcp-name: io.github.bslim1009/capped-video-mcp
