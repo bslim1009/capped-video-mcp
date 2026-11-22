@@ -2,11 +2,11 @@
 
 영상 생성 모델을 에이전트(Claude Code, Claude Desktop 등)에서 부르는 로컬 MCP 서버. 생성은 **Replicate**와 **fal**을 통해 호출하고, API 키는 각자 자기 것을 쓴다.
 
-지원 모델: `seedance-2.5`(Replicate, 기본), `seedance-2.5-fal`, `kling-3.0`, `wan-2.5`, `veo-3.1-fast`, `veo-3.1-lite`, `hailuo-2.3`, `gemini-omni-1.2-flash`. 모델마다 허용 길이·해상도·가격이 다르다(`list_models` 또는 [기본 config.toml](src/capped_video_mcp/config.toml)).
+지원 모델: `seedance-2.5`(Replicate, 기본), `seedance-2.5-fal`, `kling-3.0`, `wan-2.5`, `veo-3.1-fast`, `veo-3.1-lite`, `hailuo-2.3`, `gemini-omni-1.2-flash`. 모델마다 허용 길이·해상도·가격이 다르다(`list_models` 또는 [기본 config.toml](https://github.com/bslim1009/capped-video-mcp/blob/main/src/capped_video_mcp/config.toml)).
 
 비용 상한(모델 허용 목록, 해상도·길이, 일일·월간 예산, 동시 작업 수)과 자동 다운로드를 서버가 강제한다.
 
-> 가격표는 서버가 예산을 계산하는 **예상값**이다. 실제 청구액은 Replicate·fal 대시보드에서 확인한다. `seedance-2.5`(Replicate) 가격은 아직 확인 전(`price_checked = "unverified"`)이다.
+> **알파 단계.** 가격표는 서버가 예산을 계산하는 **예상값**이다(제공처 공시가 기준, 2026-11-22 확인). 실제 청구액은 Replicate·fal 대시보드에서 확인한다. 제공처 API 입력 형식은 공개 스키마와 대조했지만, 실제 생성→다운로드까지의 종단 검증은 아직 진행 중이다. 처음에는 가장 싼 조건(480p 4~5초)으로 시험하고 예산 상한을 낮게 두길 권한다.
 
 ## 설치와 등록
 
@@ -87,7 +87,7 @@ claude mcp add capped-video --scope user \
 
 설정은 아래 순서로 덮어쓴다. 뒤에 있는 것이 이긴다.
 
-1. 패키지 기본값 [src/capped_video_mcp/config.toml](src/capped_video_mcp/config.toml)
+1. 패키지 기본값 [src/capped_video_mcp/config.toml](https://github.com/bslim1009/capped-video-mcp/blob/main/src/capped_video_mcp/config.toml)
 2. 데이터 폴더의 `config.toml` (있으면. 바꿀 항목만 쓴다)
 3. `CAPPED_VIDEO_*` 환경 변수 (등록 때 `-e`/`env`로 넘기거나 데이터 폴더의 `.env`)
 
@@ -162,7 +162,7 @@ uv run pytest               # 실제 API 를 부르지 않는다
 }
 ```
 
-배포 절차는 [doc/배포가이드.md](doc/배포가이드.md), 작업 경과는 [doc/작업진행.md](doc/작업진행.md)에 있다.
+배포 절차는 [doc/배포가이드.md](https://github.com/bslim1009/capped-video-mcp/blob/main/doc/배포가이드.md), 작업 경과는 [doc/작업진행.md](https://github.com/bslim1009/capped-video-mcp/blob/main/doc/작업진행.md)에 있다.
 
 ## 라이선스
 
