@@ -66,9 +66,9 @@ note = "ByteDance Seedance 2.5 (Replicate). 기본 모델. 소리 포함"
 fallback_model = "seedance-2.5-fal"   # Replicate 가 확정 거부하면 fal 로
 min_duration_sec = 4
 max_duration_sec = 10
-# 서드파티 글 기준. Replicate 모델 페이지에서 확인 후 고친다.
+# Replicate 공시가 $0.1028/$0.2312 per output second (2026-11-22, 독립된 비교 글 2곳이 동일하게 인용. 실제 청구액은 미확인)
 price_per_sec = { "480p" = 0.1028, "720p" = 0.2312 }
-price_checked = "unverified"
+price_checked = "2026-11-22"
 input = { duration_format = "int", generate_audio = true }
 
 [[models]]

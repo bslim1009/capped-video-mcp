@@ -225,3 +225,16 @@ async def test_fal_cancel_uses_cancel_url():
     await FalProvider(FAKE_FAL, rec.client()).cancel(_fal_job())
     assert rec.requests[0].method == "PUT"
     assert str(rec.requests[0].url) == _fal_job()["remote_urls"]["cancel"]
+
+
+@pytest.mark.parametrize(("code", "body", "expect"), [
+    (403, {"detail": "User is locked. Reason: Exhausted balance. Top up your balance at fal.ai/dashboard/billing."}, "잔액"),
+    (403, {"detail": "Forbidden"}, "API 키"),
+    (402, {"title": "Insufficient credit"}, "잔액"),
+])
+async def test_balance_vs_auth_errors(code, body, expect):
+    """fal 은 잔액 0 을 403 으로 보낸다 (2026-11-22 실제 응답). 키 문제로 안내하면 안 된다."""
+    rec = Recorder(httpx.Response(code, json=body))
+    with pytest.raises(ProviderError) as e:
+        await FalProvider(FAKE_FAL, rec.client()).create_task(FAL_INP)
+    assert expect in e.value.message and not e.value.retryable and FAKE_FAL not in e.value.message

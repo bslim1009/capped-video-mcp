@@ -108,16 +108,25 @@ def error_from_response(provider: str, resp: httpx.Response) -> ProviderError:
     code = resp.status_code
     # 응답 원문은 로그 파일에만 남긴다. 에이전트에게는 짧은 메시지만 준다.
     log.warning("%s HTTP %s: %s", provider, code, short(resp.text, 1000))
+    detail = _detail(resp)
+    # fal 은 잔액이 0 이면 403 "User is locked. Reason: Exhausted balance." 를 보낸다. 키 문제로 안내하면 안 된다.
+    if code == 402 or (code == 403 and _looks_like_balance(detail)):
+        return ProviderError(f"{provider}: 크레딧(잔액)이 부족합니다. 제공처 대시보드에서 충전하세요.", status_code=code)
     if code in (401, 403):
         return ProviderError(f"{provider}: 인증 실패. API 키를 확인하세요.", status_code=code)
-    if code == 402:
-        return ProviderError(f"{provider}: 크레딧이 부족합니다.", status_code=code)
     if code == 429:
         return ProviderError(f"{provider}: 요청이 너무 많습니다. 잠시 뒤 다시 시도하세요.", retryable=True, status_code=code)
     if code >= 500:
         return ProviderError(f"{provider}: 서버 오류(HTTP {code}).", retryable=True, status_code=code)
-    detail = _detail(resp)
     return ProviderError(f"{provider}: 요청 거부(HTTP {code}). {detail}".strip(), status_code=code)
+
+
+_BALANCE_WORDS = ("balance", "credit", "insufficient", "top up", "exhausted", "billing")
+
+
+def _looks_like_balance(detail: str) -> bool:
+    low = detail.lower()
+    return any(w in low for w in _BALANCE_WORDS)
 
 
 def _detail(resp: httpx.Response) -> str:
