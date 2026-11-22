@@ -1,0 +1,107 @@
+{
+  "manifest_version": "0.4",
+  "name": "capped-video-mcp",
+  "display_name": "Capped Video",
+  "version": "0.1.1",
+  "description": "Video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps and duplicate protection. Bring your own API key.",
+  "long_description": "Generates videos through fal and Replicate using your own API keys. The server enforces daily and monthly budget caps and a concurrency limit, detects duplicate requests so agent retries are not billed twice, offers a free cost estimate per model, can ask you before expensive generations, and downloads finished videos automatically. Models: seedance-2.5 (Replicate), seedance-2.5-fal, kling-3.0, wan-2.5, veo-3.1-fast, veo-3.1-lite, hailuo-2.3, gemini-omni-1.2-flash.",
+  "author": {
+    "name": "bslim1009",
+    "url": "https://github.com/bslim1009"
+  },
+  "homepage": "https://github.com/bslim1009/capped-video-mcp",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bslim1009/capped-video-mcp"
+  },
+  "documentation": "https://github.com/bslim1009/capped-video-mcp#readme",
+  "server": {
+    "type": "uv",
+    "entry_point": "src/capped_video_mcp/__main__.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "python", "-m", "capped_video_mcp"],
+      "env": {
+        "FAL_KEY": "${user_config.fal_key}",
+        "REPLICATE_API_TOKEN": "${user_config.replicate_api_token}",
+        "CAPPED_VIDEO_DEFAULT_MODEL": "${user_config.default_model}",
+        "CAPPED_VIDEO_DAILY_MAX_USD": "${user_config.daily_max_usd}",
+        "CAPPED_VIDEO_MONTHLY_MAX_USD": "${user_config.monthly_max_usd}",
+        "CAPPED_VIDEO_CONFIRM_ABOVE_USD": "${user_config.confirm_above_usd}",
+        "CAPPED_VIDEO_OUTPUT_DIR": "${user_config.output_dir}"
+      }
+    }
+  },
+  "tools": [
+    {"name": "generate_video", "description": "Create a video generation job (billed). Deduplicates identical requests within 10 minutes."},
+    {"name": "estimate_video", "description": "Free cost estimate per model for the given duration/resolution/aspect ratio, cheapest first."},
+    {"name": "get_video_status", "description": "Poll a job; returns the saved file path when finished."},
+    {"name": "preview_video", "description": "Six frames of a finished video tiled into one image (needs ffmpeg)."},
+    {"name": "download_video", "description": "Retry the download of a finished video."},
+    {"name": "get_usage", "description": "Today's and this month's spend against the caps."},
+    {"name": "list_models", "description": "Allowed models, prices, durations and defaults."}
+  ],
+  "keywords": ["video", "video-generation", "seedance", "kling", "veo", "wan", "fal", "replicate", "budget"],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.12"
+    }
+  },
+  "user_config": {
+    "fal_key": {
+      "type": "string",
+      "title": "fal API key",
+      "description": "From fal.ai/dashboard/keys (API scope, not ADMIN). Leave empty if you only use Replicate.",
+      "sensitive": true,
+      "required": false
+    },
+    "replicate_api_token": {
+      "type": "string",
+      "title": "Replicate API token",
+      "description": "From replicate.com/account/api-tokens. Leave empty if you only use fal.",
+      "sensitive": true,
+      "required": false
+    },
+    "default_model": {
+      "type": "string",
+      "title": "Default model",
+      "description": "seedance-2.5, seedance-2.5-fal, kling-3.0, wan-2.5, veo-3.1-fast, veo-3.1-lite, hailuo-2.3 or gemini-omni-1.2-flash",
+      "default": "seedance-2.5",
+      "required": false
+    },
+    "daily_max_usd": {
+      "type": "number",
+      "title": "Daily budget (USD)",
+      "description": "Generations that would push today's estimated spend above this are refused.",
+      "default": 5,
+      "min": 0.01,
+      "required": false
+    },
+    "monthly_max_usd": {
+      "type": "number",
+      "title": "Monthly budget (USD)",
+      "description": "Same cap for the calendar month.",
+      "default": 30,
+      "min": 0.01,
+      "required": false
+    },
+    "confirm_above_usd": {
+      "type": "number",
+      "title": "Confirm above (USD)",
+      "description": "Ask before any generation estimated at or above this amount. 0 disables.",
+      "default": 0,
+      "min": 0,
+      "required": false
+    },
+    "output_dir": {
+      "type": "directory",
+      "title": "Output folder",
+      "description": "Where finished videos are saved.",
+      "default": "${HOME}/Videos/capped-video",
+      "required": false
+    }
+  }
+}

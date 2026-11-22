@@ -1,0 +1,27 @@
+# .mcpb 번들에서 제외 (manifest.json, pyproject.toml, uv.lock, README.md, LICENSE, src/ 만 들어간다)
+.git
+.github
+.venv
+.omc
+.claude
+.claude-plugin
+.pytest_cache
+.ruff_cache
+.mcp.json
+.env
+.env.example
+.gitignore
+.python-version
+tests
+doc
+dist
+data
+logs
+output
+input
+server.json
+glama.json
+CHANGELOG.md
+README.ko.md
+__pycache__
+*.pyc

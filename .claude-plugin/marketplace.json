@@ -1,0 +1,15 @@
+{
+  "name": "capped-video-mcp",
+  "description": "Budget-capped video generation MCP server for Claude Code",
+  "owner": {
+    "name": "bslim1009",
+    "url": "https://github.com/bslim1009"
+  },
+  "plugins": [
+    {
+      "name": "capped-video-mcp",
+      "source": "./",
+      "description": "Video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps, duplicate protection and cost estimates"
+    }
+  ]
+}

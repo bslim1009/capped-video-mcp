@@ -1,0 +1,71 @@
+{
+  "name": "capped-video-mcp",
+  "version": "0.1.1",
+  "description": "Video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps, duplicate protection and cost estimates. Bring your own API key.",
+  "author": {
+    "name": "bslim1009",
+    "url": "https://github.com/bslim1009"
+  },
+  "homepage": "https://github.com/bslim1009/capped-video-mcp",
+  "repository": "https://github.com/bslim1009/capped-video-mcp",
+  "license": "MIT",
+  "keywords": ["mcp", "video", "video-generation", "seedance", "kling", "veo", "fal", "replicate", "budget"],
+  "mcpServers": {
+    "capped-video": {
+      "command": "uvx",
+      "args": ["capped-video-mcp"],
+      "env": {
+        "FAL_KEY": "${user_config.fal_key}",
+        "REPLICATE_API_TOKEN": "${user_config.replicate_api_token}",
+        "CAPPED_VIDEO_DEFAULT_MODEL": "${user_config.default_model}",
+        "CAPPED_VIDEO_DAILY_MAX_USD": "${user_config.daily_max_usd}",
+        "CAPPED_VIDEO_MONTHLY_MAX_USD": "${user_config.monthly_max_usd}",
+        "CAPPED_VIDEO_CONFIRM_ABOVE_USD": "${user_config.confirm_above_usd}"
+      }
+    }
+  },
+  "userConfig": {
+    "fal_key": {
+      "type": "string",
+      "title": "fal API key",
+      "description": "Key from fal.ai/dashboard/keys (API scope, not ADMIN). Leave empty if you only use Replicate.",
+      "sensitive": true,
+      "required": false
+    },
+    "replicate_api_token": {
+      "type": "string",
+      "title": "Replicate API token",
+      "description": "Token from replicate.com/account/api-tokens. Leave empty if you only use fal.",
+      "sensitive": true,
+      "required": false
+    },
+    "default_model": {
+      "type": "string",
+      "title": "Default model",
+      "description": "Model alias used when a request names none. One of: seedance-2.5, seedance-2.5-fal, kling-3.0, wan-2.5, veo-3.1-fast, veo-3.1-lite, hailuo-2.3, gemini-omni-1.2-flash.",
+      "default": "seedance-2.5",
+      "required": false
+    },
+    "daily_max_usd": {
+      "type": "string",
+      "title": "Daily budget (USD)",
+      "description": "The server refuses generations that would push today's estimated spend above this.",
+      "default": "5",
+      "required": false
+    },
+    "monthly_max_usd": {
+      "type": "string",
+      "title": "Monthly budget (USD)",
+      "description": "Same cap for the calendar month.",
+      "default": "30",
+      "required": false
+    },
+    "confirm_above_usd": {
+      "type": "string",
+      "title": "Confirm above (USD)",
+      "description": "Ask you before any generation estimated at or above this amount. 0 disables.",
+      "default": "0",
+      "required": false
+    }
+  }
+}

@@ -47,9 +47,21 @@ Check the connection with `/mcp`. `generate_video` costs money — keep it out o
 
 `uvx` keeps using the version it first downloaded. To upgrade, register with `uvx capped-video-mcp@latest` or run `uvx --refresh capped-video-mcp` once.
 
-### Claude Desktop and other clients
+### Claude Code plugin (prompts for keys and budget)
 
-Add the same JSON shape to `mcpServers` in `claude_desktop_config.json` (or your client's MCP settings). Write the key values directly instead of `${...}`.
+```
+/plugin install capped-video-mcp --marketplace bslim1009/capped-video-mcp
+```
+
+Claude Code asks for your fal/Replicate keys, default model and budget caps when the plugin is enabled, stores keys in the OS credential store, and runs the server with `uvx capped-video-mcp`. Change the values later under `/config`.
+
+### Claude Desktop extension (double-click install)
+
+Download `capped-video-mcp-<version>.mcpb` from the [releases page](https://github.com/bslim1009/capped-video-mcp/releases) and open it with Claude Desktop. The install dialog asks for your keys, default model, budget caps and output folder; Claude Desktop manages Python and dependencies itself (UV runtime). No terminal needed.
+
+### Other clients
+
+Add the same JSON shape to `mcpServers` in your client's MCP settings (for Claude Desktop without the extension: `claude_desktop_config.json`). Write the key values directly instead of `${...}`.
 
 ### Try it without keys
 
