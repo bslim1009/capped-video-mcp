@@ -1,7 +1,7 @@
 [project]
 name = "capped-video-mcp"
 version = "0.1.1"
-description = "영상 생성 모델(Seedance, Kling, Veo 등)을 fal·Replicate 로 부르는 MCP 서버. 비용 상한과 자동 다운로드 포함"
+description = "MCP server for video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps, duplicate protection and auto-download"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
