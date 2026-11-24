@@ -31,23 +31,23 @@ from .service import App, AppError
 log = logging.getLogger(__name__)
 
 INSTRUCTIONS = """\
-영상 생성 서버입니다. generate_video 는 과금되므로 사용자가 요청할 때만 부르세요.
-생성 후에는 get_video_status 로 완료를 확인합니다.
-완료된 영상은 서버가 출력 폴더에 자동 저장하고, get_video_status 가 파일 경로를 알려 줍니다.
-결과 수거는 이 서버(세션)가 켜져 있는 동안에만 일어납니다. 생성 중에는 세션을 닫지 않는 것이 좋습니다.
-오류 메시지가 "다시 보내지 마세요"라고 하면 같은 요청을 반복하지 마세요 (이중 과금 위험).
-모델·가격은 list_models, 남은 예산은 get_usage 로 확인합니다.
-어떤 모델이 얼마인지, 예산 안에서 가장 싼 모델이 무엇인지는 estimate_video (무료) 로 먼저 봅니다.
-완성된 영상은 preview_video (무료) 로 프레임 이미지를 받아 결과가 요청과 맞는지 눈으로 확인합니다."""
+Video generation server. generate_video is billed, so call it only when the user asks for a video.
+After generating, check completion with get_video_status.
+The server saves finished videos to its output folder automatically; get_video_status returns the file path.
+Results are collected only while this server (session) is running, so avoid closing the session during a generation.
+If an error says not to resend the same request ("다시 보내지 마세요"), do not repeat it (risk of double billing).
+Models and prices: list_models. Remaining budget: get_usage.
+To see what each model costs and which is cheapest within the budget, call estimate_video first (free).
+Use preview_video (free) to get frames of a finished video and check that it matches the request."""
 
 _EXPECTED = (PolicyError, AppError, LedgerError)
 _ELICIT_FORM = ClientCapabilities(elicitation=ElicitationCapability(form=FormElicitationCapability()))
 
 
 class ConfirmCost(BaseModel):
-    """생성 전 비용 확인 응답."""
+    """Answer to a cost confirmation before generating."""
 
-    proceed: bool = Field(description="true 면 생성을 진행하고 과금됩니다. false 면 취소합니다.")
+    proceed: bool = Field(description="true generates the video and bills it; false cancels.")
 
 
 def create_server(app: App) -> MCPServer:
@@ -93,31 +93,34 @@ def create_server(app: App) -> MCPServer:
         reference_dir: str | None = None,
         ctx: Context | None = None,
     ) -> dict[str, Any]:
-        """영상 생성 작업을 만든다. **과금된다.** 사용자가 영상 생성을 요청했을 때만 부른다.
+        """Create a video generation job. **Billed.** Call only when the user asks for a video.
 
-        기본값: config.toml 의 defaults (seedance-2.5 / Replicate, 480p, 5초, 16:9).
-        이미지→영상: image_path 에 첫 프레임으로 쓸 로컬 이미지의 절대 경로(PNG·JPEG·WebP)를 준다.
-        이때 model 은 이름이 -i2v 로 끝나는 이미지→영상 모델이어야 하며, 생략하면 list_models 의 defaults.image_model 을 쓴다.
-        대부분의 이미지→영상 모델은 화면 비율이 이미지를 따르므로 aspect_ratio 를 주지 않는다
-        (list_models 의 aspect_ratios 가 auto 인 모델).
-        참조→영상: 여러 이미지(캐릭터·배경 등)와 음성을 참고해 새 장면을 만든다. 파일은 모두 로컬 절대 경로다.
-        reference_image_paths(PNG·JPEG·WebP, 1장 이상)와 reference_audio_paths(MP3·WAV, 파일당 1.8초 이상,
-        합계 30초 이하)를 주거나, reference_dir 에 폴더를 주면 그 안의 이미지·오디오를 파일 이름순으로 쓴다.
-        프롬프트에서는 순서대로 [Image1], [Image2], [Audio1] 처럼 가리킨다 (예: "[Image1] 의 공룡과 [Image2] 의 공룡이 싸운다.
-        [Audio1] 의 포효 소리에 맞춰"). 어떤 파일이 몇 번인지는 estimate_video 의 references 로 먼저 확인할 수 있다 (무료).
-        model 은 -ref 로 끝나는 참조→영상 모델이며, 생략하면 defaults.reference_model 을 쓴다. image_path 와 함께 쓸 수 없다.
-        모델마다 허용 해상도·길이·화면 비율과 가격이 다르다. 다른 모델을 쓰기 전에 list_models 로 확인한다
-        (예: veo 는 4·6·8초, wan 은 5·10초, hailuo 는 6·10초만). 지정하지 않으면 모델에 맞는 가장 싼 값을 고른다.
-        자동 길이는 허용하지 않는다. 일일·월간 예산을 넘으면 거부한다.
-        job_id 를 반환한다. 완료되면 서버가 출력 폴더에 자동 저장하며, get_video_status 로 확인한다.
-        오류가 "다시 보내지 마세요"라고 하면 같은 요청을 반복하지 않는다.
-        같은 요청(프롬프트·모델·해상도·길이·비율·입력 파일 내용)이 최근에 이미 접수됐으면 새 작업을 만들지 않고 기존 job_id 를
-        duplicate=true 로 돌려준다 (과금 없음). request_id 를 주면 그 값으로도 중복을 잡는다.
-        사용자가 같은 영상을 하나 더 원할 때만 force=true 를 쓴다.
-        1차 제공처가 요청을 확정 거부하면 대체 모델로 만들고 failover_from 에 원래 모델을 적는다.
-        대체 모델이 더 비싸면 서버가 사용자에게 직접 묻고 승인했을 때만 넘어간다. 확인 요청을 지원하지 않는
-        클라이언트에서는 넘어가지 않고 오류로 대체 모델과 가격을 알려 준다 → 사용자에게 물어본 뒤 그 model 로 다시 요청한다.
-        예상 비용이 설정 임계값 이상이면 서버가 사용자에게 직접 확인을 요청할 수 있다.
+        Defaults come from config.toml (seedance-2.5 on Replicate, 480p, 5 s, 16:9).
+        Image to video: pass image_path, the absolute path of a local image (PNG/JPEG/WebP) to use as the first frame.
+        The model must then be an image-to-video model (alias ending in -i2v); if omitted, defaults.image_model from
+        list_models is used. Most image-to-video models follow the image's aspect ratio, so do not pass aspect_ratio
+        for them (their aspect_ratios in list_models is auto).
+        Reference to video: builds a new scene from several images (characters, backgrounds) and audio. All paths are
+        local absolute paths. Pass reference_image_paths (PNG/JPEG/WebP, at least one) and reference_audio_paths
+        (MP3/WAV, each at least 1.8 s, 30 s in total), or reference_dir to use the images and audio in a folder in
+        file-name order. Refer to them in the prompt as [Image1], [Image2], [Audio1] in that order (for example
+        "The dinosaur from [Image1] fights the dinosaur from [Image2], roaring like [Audio1]"). Which file got which
+        number can be checked first with estimate_video's references (free). The model is a reference-to-video model
+        (alias ending in -ref); if omitted, defaults.reference_model is used. It cannot be combined with image_path.
+        Each model allows different resolutions, durations and aspect ratios and has its own price; check list_models
+        before using another model (e.g. veo takes 4/6/8 s, wan 5/10 s, hailuo 6/10 s only). Values you leave out are
+        set to the cheapest ones the model allows. Automatic duration is not allowed. Requests over the daily or
+        monthly budget are refused.
+        Returns a job_id. When finished, the server saves the video to its output folder; check with get_video_status.
+        If an error says not to resend the same request ("다시 보내지 마세요"), do not repeat it.
+        If an identical request (prompt, model, resolution, duration, aspect ratio and input file contents) was
+        accepted recently, no new job is created and the existing job_id is returned with duplicate=true (no charge).
+        request_id also deduplicates. Use force=true only when the user wants another copy of the same video.
+        If the first provider definitively rejects the request, the fallback model is used and failover_from names the
+        original model. If the fallback costs more, the server asks the user directly and switches only on approval.
+        Clients that cannot show that question get an error naming the fallback model and its price instead: ask the
+        user, then retry with that model.
+        If the estimated cost is at or above the configured threshold, the server may ask the user to confirm first.
         """
         async def confirm(message: str) -> bool | None:
             if ctx is None or not ctx.session.check_client_capability(_ELICIT_FORM):
@@ -135,11 +138,11 @@ def create_server(app: App) -> MCPServer:
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))
     async def get_video_status(job_id: str, wait_seconds: int = 30) -> dict[str, Any]:
-        """작업 상태를 확인한다. 과금되지 않는다.
+        """Check a job's status. Not billed.
 
-        완료될 때까지 최대 wait_seconds(상한 60초) 동안 기다린다.
-        status 가 queued/running/downloading 이면 이 도구를 다시 부른다.
-        succeeded 이면 file 에 저장된 영상 경로가 있다.
+        Waits up to wait_seconds (max 60) for the job to finish.
+        If status is queued/running/downloading, call this tool again.
+        When it is succeeded, file holds the path of the saved video.
         """
         try:
             return await app.status(job_id, wait_seconds)
@@ -149,9 +152,9 @@ def create_server(app: App) -> MCPServer:
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False,
                                           idempotent_hint=True, open_world_hint=False))
     async def download_video(job_id: str, wait_seconds: int = 30) -> dict[str, Any]:
-        """내려받지 못한(lost) 작업의 다운로드를 다시 시도하거나, 완료된 파일 경로를 돌려준다. 과금되지 않는다.
+        """Retry the download of a job whose video could not be downloaded (lost), or return the saved file path. Not billed.
 
-        보통은 서버가 자동으로 내려받으므로 부를 필요가 없다. URL 이나 경로는 받지 않는다.
+        The server downloads results automatically, so this is rarely needed. It takes no URL or path.
         """
         try:
             return await app.download(job_id, wait_seconds)
@@ -160,7 +163,7 @@ def create_server(app: App) -> MCPServer:
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))
     def get_usage() -> dict[str, Any]:
-        """오늘·이번 달 생성 횟수와 예상 비용, 상한, 진행 중인 작업 수를 돌려준다."""
+        """Return today's and this month's generation count and estimated spend, the caps, and jobs in progress."""
         try:
             return app.usage()
         except _EXPECTED as e:
@@ -168,10 +171,11 @@ def create_server(app: App) -> MCPServer:
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))
     async def preview_video(job_id: str) -> list[TextContent | ImageContent]:
-        """완성된 영상의 프레임 여러 장을 한 이미지로 붙여 돌려준다. 과금되지 않는다.
+        """Return several frames of a finished video tiled into one image. Not billed.
 
-        영상을 직접 볼 수 없으니 이 이미지로 결과가 요청과 맞는지 확인한다. 왼쪽 위부터 오른쪽 아래로 시간 순서다.
-        succeeded 상태에서만 만들 수 있다. ffmpeg 가 없으면 preview_available=false 와 이유를 돌려준다.
+        You cannot watch the video, so use this image to check that the result matches the request. Frames run in
+        time order from top left to bottom right. Only available once the job has succeeded. Without ffmpeg it
+        returns preview_available=false and the reason.
         """
         try:
             view, image = await app.preview(job_id)
@@ -194,13 +198,16 @@ def create_server(app: App) -> MCPServer:
         reference_audio_paths: list[str] | None = None,
         reference_dir: str | None = None,
     ) -> dict[str, Any]:
-        """과금 없이 비용을 견적한다. 조건(길이·해상도·화면 비율)에 맞는 모델을 싼 순서로, 남은 예산과 함께 돌려준다.
+        """Estimate cost without billing. Returns the models that fit the constraints (duration, resolution, aspect
+        ratio), cheapest first, with the remaining budget.
 
-        generate_video 를 부르기 전에 모델을 고르거나 예산이 충분한지 볼 때 쓴다. cheapest 는 예산 안에서 가장 싼 모델.
-        조건을 지정하지 않으면 모델별 가장 싼 값을 가정한다. 조건을 만족하지 못하는 모델은 unavailable 에 이유와 함께 나온다.
-        prompt 를 주면 같은 요청이 최근에 있었는지(duplicate_of)도 알려 준다.
-        입력 종류가 같은 모델끼리 비교한다: 참조 파일(reference_*)을 주면 참조→영상, image_path 를 주면 이미지→영상,
-        둘 다 없으면 텍스트→영상. 참조 파일을 주면 references 에 [Image1]·[Audio1] 표기와 파일의 대응을 돌려준다.
+        Use it before generate_video to pick a model or to check the budget. cheapest is the cheapest model within the
+        budget. Constraints you leave out are set to each model's cheapest values. Models that cannot meet the
+        constraints are listed in unavailable with the reason. With prompt, it also reports a recent identical request
+        (duplicate_of).
+        Models are compared within the same input kind: reference-to-video when reference files (reference_*) are
+        given, image-to-video when image_path is given, otherwise text-to-video. With reference files, references maps
+        the [Image1]/[Audio1] labels to the files.
         """
         try:
             return app.estimate(duration_sec, resolution, aspect_ratio, model, prompt, image_path,
@@ -210,10 +217,11 @@ def create_server(app: App) -> MCPServer:
 
     @mcp.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))
     def list_models() -> dict[str, Any]:
-        """사용할 수 있는 모델, 해상도별 초당 가격(USD), 길이 범위, 기본값을 돌려준다.
+        """Return the available models, per-second prices by resolution (USD), duration ranges and the defaults.
 
-        input 이 image 인 모델은 이미지→영상 모델이며 generate_video 에 image_path 가 필요하다.
-        input 이 reference 인 모델은 참조→영상 모델이며 참조 이미지(reference_image_paths 또는 reference_dir)가 필요하다.
+        Models whose input is image are image-to-video models and need image_path in generate_video.
+        Models whose input is reference are reference-to-video models and need reference images
+        (reference_image_paths or reference_dir).
         """
         return app.list_models()
 

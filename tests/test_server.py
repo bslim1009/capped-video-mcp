@@ -14,7 +14,10 @@ async def test_tools_listed(make_app):
     assert tools["preview_video"].annotations.read_only_hint is True
     assert "ctx" not in tools["generate_video"].input_schema["properties"]
     assert tools["estimate_video"].annotations.read_only_hint is True
-    assert "과금" in tools["generate_video"].description
+    assert "**Billed.**" in tools["generate_video"].description          # 과금 경고가 도구 설명에 남아 있어야 한다
+    # 에이전트·디렉터리가 읽는 도구 설명은 영어다 (오류 메시지는 한국어라 "다시 보내지 마세요" 인용은 예외)
+    for t in tools.values():
+        assert not any("가" <= ch <= "힣" for ch in t.description.replace("다시 보내지 마세요", "")), t.name
     assert tools["get_usage"].annotations.read_only_hint is True
     props = tools["generate_video"].input_schema["properties"]
     assert {"request_id", "force"} <= set(props)
