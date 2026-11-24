@@ -8,7 +8,7 @@ Every model also has an **image-to-video** variant with the `-i2v` suffix (`seed
 
 The server enforces cost limits (model allowlist, resolution/duration caps, daily and monthly budgets, concurrent jobs), detects duplicate requests so agent retries don't get billed twice, and downloads finished videos automatically.
 
-> **Alpha.** Prices in the config are **estimates** used for budgeting (taken from provider list prices, checked 2026-11-22). Check actual charges on your Replicate/fal dashboard. Provider request formats were validated against the public API schemas, but end-to-end verification of real generation and download is still in progress. Start with the cheapest settings (480p, 4–5 s) and a low budget cap.
+> **Alpha.** Prices in the config are **estimates** used for budgeting (taken from provider list prices, checked 2026-11-22). Check actual charges on your Replicate/fal dashboard. Provider request formats were validated against the public API schemas. A real fal generation was verified end-to-end on 2026-11-25 (image-to-video: image upload → generate → automatic download → preview); Replicate generations and reference-to-video have not been verified with real generations yet. Start with the cheapest settings (480p, 4–5 s) and a low budget cap.
 
 ## Install and register
 
