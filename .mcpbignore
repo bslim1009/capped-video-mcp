@@ -14,6 +14,7 @@
 .python-version
 tests
 doc
+scripts
 dist
 data
 logs
