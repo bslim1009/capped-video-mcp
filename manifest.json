@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "capped-video-mcp",
   "display_name": "Capped Video",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Text-, image- and reference-to-video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps and duplicate protection. Bring your own API key.",
   "long_description": "Generates videos through fal and Replicate using your own API keys. The server enforces daily and monthly budget caps and a concurrency limit, detects duplicate requests so agent retries are not billed twice, offers a free cost estimate per model, can ask you before expensive generations, and downloads finished videos automatically. Models: seedance-2.5 (Replicate), seedance-2.5-fal, kling-3.0, wan-2.5, veo-3.1-fast, veo-3.1-lite, hailuo-2.3, gemini-omni-1.2-flash, each with an image-to-video variant (-i2v suffix) that animates a local image as the first frame, plus Seedance reference-to-video (seedance-2.5-ref) that combines several local images and audio clips.",
   "author": {

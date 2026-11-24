@@ -1,6 +1,6 @@
 {
   "name": "capped-video-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps, duplicate protection and cost estimates. Bring your own API key.",
   "author": {
     "name": "bslim1009",

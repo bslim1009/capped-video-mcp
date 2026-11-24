@@ -1,6 +1,6 @@
 [project]
 name = "capped-video-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "MCP server for video generation (Seedance, Kling, Veo, Wan) via fal/Replicate with hard budget caps, duplicate protection and auto-download"
 readme = "README.md"
 license = "MIT"
